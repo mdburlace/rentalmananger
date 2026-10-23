@@ -49,8 +49,8 @@ function Categories() {
             <label className="field full">Name<input required value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></label>
             <label className="field full">ATO rental schedule label
               <select value={f.ato_key} onChange={(e) => setF({ ...f, ato_key: e.target.value })}>
-                {(["income", "expense", "excluded"] as const).map((k) => (
-                  <optgroup key={k} label={k === "income" ? "Income" : k === "expense" ? "Expenses" : "Not claimed"}>
+                {(["income", "expense", "excluded", "transfer"] as const).map((k) => (
+                  <optgroup key={k} label={{ income: "Income", expense: "Expenses", excluded: "Not claimed", transfer: "Owner funds" }[k]}>
                     {labels?.filter((l) => l.kind === k).map((l) => <option key={l.key} value={l.key}>{l.label}</option>)}
                   </optgroup>
                 ))}

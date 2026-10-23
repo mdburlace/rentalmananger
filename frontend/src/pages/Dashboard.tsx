@@ -60,7 +60,7 @@ export default function DashboardPage() {
           <div className="grid grid-3">
             <div className="card kpi"><div className="label">Income</div><div className="value pos">{money(data.totals.income)}</div><div className="sub">Rent & other rental income</div></div>
             <div className="card kpi"><div className="label">Deductible expenses</div><div className="value neg">{money(data.totals.expenses)}</div><div className="sub">Claimable share</div></div>
-            <div className="card kpi"><div className="label">Net rent</div><div className={`value ${data.totals.net >= 0 ? "pos" : "neg"}`}>{money(data.totals.net)}</div><div className="sub">{data.totals.net < 0 ? "Negatively geared" : "Positively geared"}</div></div>
+            <div className="card kpi"><div className="label">Net rent</div><div className={`value ${data.totals.net >= 0 ? "pos" : "neg"}`}>{money(data.totals.net)}</div><div className="sub">{data.totals.net < 0 ? "Negatively geared" : "Positively geared"}{data.totals.contributed > 0 ? ` · owners put in ${moneyShort(data.totals.contributed)}` : ""}{data.totals.drawn > 0 ? ` · drawn ${moneyShort(data.totals.drawn)}` : ""}</div></div>
           </div>
 
           {(data.checks.length > 0 || data.needs_review > 0) && (

@@ -12,7 +12,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from sqlalchemy.orm import Session
 
-from ..ato import ATO_BY_KEY, ATO_LABELS
+from ..ato import ATO_BY_KEY, ATO_LABELS, TRANSFER_KEYS
 from ..config import get_settings
 from ..fy import fy_label
 from ..models import Portfolio, User
@@ -160,10 +160,38 @@ def build_workbook(db: Session, user: User, fy: int, property_id: int | None = N
             rr += 1
     _autowidth(wo)
 
+    # ---- Owner funding (contributions / drawings – not on the schedule)
+    if rep["owner_funding"]:
+        wf = wb.create_sheet("Owner funding")
+        wf["A1"] = "Money owners put in or took out – not income or expenses, shown for information"
+        wf["A1"].font = Font(italic=True, color="6B7280")
+        _header(wf, 3, ["Property", "Owner", "Contributed", "Drawn", "Net put in"])
+        rr = 4
+        for p in props:
+            for f in p["owner_funding"]:
+                vals = [p["property"]["name"], f["owner_name"], f["contributed"], f["drawn"], f["net"]]
+                for i, v in enumerate(vals, start=1):
+                    c = wf.cell(row=rr, column=i, value=v)
+                    if i > 2:
+                        c.number_format = MONEY
+                rr += 1
+        if len(props) > 1:
+            rr += 1
+            wf.cell(row=rr, column=1, value="All properties").font = BOLD
+            for f in rep["owner_funding"]:
+                vals = ["", f["owner_name"], f["contributed"], f["drawn"], f["net"]]
+                for i, v in enumerate(vals, start=1):
+                    c = wf.cell(row=rr, column=i, value=v)
+                    c.font = BOLD
+                    if i > 2:
+                        c.number_format = MONEY
+                rr += 1
+        _autowidth(wf)
+
     # ---- Transactions
     wt = wb.create_sheet("Transactions")
     cols = ["Date", "Property", "Schedule label", "Category", "Payee", "Description", "Reference", "Bill period",
-            "Amount", "Claim %", "Claimable", "Receipts", "Needs review", "Notes"]
+            "Amount", "Claim %", "Claimable", "Receipts", "Needs review", "Notes", "Owner"]
     _header(wt, 1, cols)
     txns = fy_transactions(db, user, fy, property_id)
     for i, t in enumerate(txns, start=2):
@@ -173,8 +201,9 @@ def build_workbook(db: Session, user: User, fy: int, property_id: int | None = N
             period += f" – {t.period_end:%d/%m/%Y}" if t.period_end else ""
         vals = [t.date, t.property.name, ATO_BY_KEY[t.category.ato_key].label, t.category.name, t.payee,
                 t.description, t.reference, period, from_cents(t.amount_cents), float(t.deductible_percent) / 100,
-                from_cents(apply_percent(t.amount_cents, t.deductible_percent)),
-                ", ".join(a.filename for a in t.attachments), "Yes" if t.needs_review else "", t.notes]
+                None if t.category.ato_key in TRANSFER_KEYS else from_cents(apply_percent(t.amount_cents, t.deductible_percent)),
+                ", ".join(a.filename for a in t.attachments), "Yes" if t.needs_review else "", t.notes,
+                t.owner.name if t.owner else None]
         for j, v in enumerate(vals, start=1):
             c = wt.cell(row=i, column=j, value=v)
             if j == 1:
@@ -231,14 +260,16 @@ def transactions_csv(db: Session, user: User, fy: int, property_id: int | None =
     out = io.StringIO()
     w = csv.writer(out)
     w.writerow(["date", "property", "schedule_label", "category", "payee", "description", "reference",
-                "period_start", "period_end", "amount", "claim_percent", "claimable", "receipts", "needs_review", "notes"])
+                "period_start", "period_end", "amount", "claim_percent", "claimable", "receipts", "needs_review", "notes",
+                "owner"])
     for t in fy_transactions(db, user, fy, property_id):
         w.writerow([t.date.isoformat(), t.property.name, ATO_BY_KEY[t.category.ato_key].label, t.category.name,
                     t.payee or "", t.description or "", t.reference or "",
                     t.period_start.isoformat() if t.period_start else "", t.period_end.isoformat() if t.period_end else "",
                     f"{t.amount_cents / 100:.2f}", f"{float(t.deductible_percent):g}",
                     f"{apply_percent(t.amount_cents, t.deductible_percent) / 100:.2f}",
-                    "; ".join(a.filename for a in t.attachments), "yes" if t.needs_review else "", t.notes or ""])
+                    "; ".join(a.filename for a in t.attachments), "yes" if t.needs_review else "", t.notes or "",
+                    t.owner.name if t.owner else ""])
     return out.getvalue()
 
 
@@ -267,6 +298,8 @@ def accountant_pack(db: Session, user: User, fy: int, property_id: int | None = 
             f"- 'Rental schedule FY{label}.xlsx' – totals by ATO rental schedule label, owner shares, every "
             "transaction, loan balances and open items.\n"
             f"- 'Transactions FY{label}.csv' – the same transactions for importing into other software.\n"
+            "- Owner contributions/drawings (if any) are listed on the 'Owner funding' sheet. They are not income\n"
+            "  or expenses and are not included in the rental schedule totals.\n"
             f"- 'Receipts/' – {count} supporting document(s), named date_category_amount_original-name.\n"
         ))
     return buf.getvalue()

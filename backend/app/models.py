@@ -149,6 +149,8 @@ class Transaction(Base):
     period_start: Mapped[dt.date | None] = mapped_column(Date)
     period_end: Mapped[dt.date | None] = mapped_column(Date)
     needs_review: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Which owner put in / took out the money (owner contributions & drawings).
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("owners.id", ondelete="SET NULL"), index=True)
     notes: Mapped[str | None] = mapped_column(Text)
     source: Mapped[str] = mapped_column(String(20), default="manual")
     import_batch_id: Mapped[int | None] = mapped_column(ForeignKey("import_batches.id", ondelete="SET NULL"))
@@ -158,6 +160,7 @@ class Transaction(Base):
 
     category: Mapped[Category] = relationship(lazy="joined")
     property: Mapped[Property] = relationship(lazy="joined")
+    owner: Mapped[Owner | None] = relationship(lazy="joined")
     attachments: Mapped[list[Attachment]] = relationship(
         back_populates="transaction", cascade="all, delete-orphan", lazy="selectin"
     )

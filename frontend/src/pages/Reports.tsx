@@ -119,6 +119,18 @@ export default function ReportsPage() {
                     ))}</tbody>
                   </table>
                 </div>
+                {r.owner_funding.length > 0 && (
+                  <div>
+                    <h3 style={{ marginBottom: 4 }}>Owner funding</h3>
+                    <div className="sub muted" style={{ marginBottom: 8 }}>Money owners put in or took out. Not income or expenses – not part of net rent.</div>
+                    <table>
+                      <thead><tr><th>Owner</th><th className="num">Put in</th><th className="num">Drawn</th><th className="num">Net</th></tr></thead>
+                      <tbody>{r.owner_funding.map((f) => (
+                        <tr key={f.owner_name}><td>{f.owner_name}</td><td className="num">{money(f.contributed)}</td><td className="num">{money(f.drawn)}</td><td className="num">{money(f.net)}</td></tr>
+                      ))}</tbody>
+                    </table>
+                  </div>
+                )}
                 <div>
                   <h3 style={{ marginBottom: 8 }}>Property & year details</h3>
                   <div className="sub muted" style={{ marginBottom: 10 }}>Purchased {fmtDate(r.property.purchase_date)}{r.property.purchase_price ? ` for ${money(r.property.purchase_price)}` : ""} · first rented {fmtDate(r.property.first_rented_date)}</div>

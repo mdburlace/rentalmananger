@@ -124,6 +124,7 @@ td .sub { color: var(--muted); font-size: .8rem; }
 .b-income { background: var(--income-soft); color: var(--income); }
 .b-expense { background: var(--expense-soft); color: var(--expense); }
 .b-excluded { background: var(--surface-2); color: var(--ink-2); }
+.b-transfer { background: var(--gold-soft); color: var(--warn); }
 .b-warn { background: var(--warn-soft); color: var(--warn); }
 .b-info { background: var(--info-soft); color: var(--info); }
 .alert { padding: 10px 14px; border-radius: 8px; font-size: .88rem; display: flex; gap: 10px; align-items: flex-start; }

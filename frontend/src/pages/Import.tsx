@@ -1,13 +1,14 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, fmtDate, fyLabel, money, PreviewRow } from "../api";
-import { CategorySelect, ErrorBox, PropertySelect, useLoad, useSession } from "../components";
+import { CategorySelect, ErrorBox, OwnerSelect, PropertySelect, useLoad, useSession } from "../components";
 
 type Preview = { filename: string; sheets: { sheet: string; fy?: number | null; rows: number; skipped?: string }[]; rows: PreviewRow[] };
 type Batch = { id: number; filename: string; row_count: number; remaining: number; created_at: string };
 
 export default function ImportPage() {
-  const { properties, toast, reload: reloadSession } = useSession();
+  const { properties, categories, toast, reload: reloadSession } = useSession();
+  const isTransfer = (id: number | null) => categories.find((c) => c.id === id)?.kind === "transfer";
   const [prop, setProp] = useState<number | "">(properties.length === 1 ? properties[0].id : "");
   const [file, setFile] = useState<File | null>(null);
   const [over, setOver] = useState(false);
@@ -138,7 +139,10 @@ export default function ImportPage() {
                     <td className="num"><input inputMode="decimal" value={r.amount ?? ""} onChange={(e) => update(r.row_id, { amount: e.target.value === "" ? null : Number(e.target.value) })} style={{ width: 110, textAlign: "right" }} /></td>
                     <td style={{ minWidth: 190 }}>
                       {r.action === "loan_balance" ? <span className="sub">Rate <input style={{ width: 70 }} value={r.interest_rate ?? ""} onChange={(e) => update(r.row_id, { interest_rate: e.target.value ? Number(e.target.value) : null })} />%</span>
-                        : <CategorySelect value={r.category_id} onChange={(v) => update(r.row_id, { category_id: v || null })} includeEmpty="Choose…" />}
+                        : <>
+                          <CategorySelect value={r.category_id} onChange={(v) => update(r.row_id, { category_id: v || null })} includeEmpty="Choose…" />
+                          {isTransfer(r.category_id) && <div style={{ marginTop: 6 }}><OwnerSelect propertyId={prop} value={r.owner_id ?? ""} onChange={(v) => update(r.row_id, { owner_id: v || null })} /></div>}
+                        </>}
                     </td>
                     <td style={{ maxWidth: 360 }}>
                       {r.issues.map((i, k) => <div key={k} className="sub" style={{ color: i.startsWith("Already") || i.startsWith("Same as") ? "var(--muted)" : "var(--warn)" }}>{i}</div>)}

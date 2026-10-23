@@ -9,6 +9,7 @@ It replaces the "one sheet per financial year" expenses spreadsheet with:
 - **Income & expenses** per property, with receipts and invoices attached (photos or PDFs)
 - **Categories mapped to ATO rental schedule labels** – call them whatever you like; reports always line up with the schedule
 - **Ownership splits** (e.g. 50/50) so each owner's share is calculated for their own return
+- **Owner funds** – record money an owner puts in to cover a shortfall (or takes out) against that owner; kept off the tax schedule and reported separately
 - **Loans** with 30 June balances and interest rates; private-use apportionment for partly private loans or expenses
 - **Spreadsheet import** – drop in the old workbooks (or a bank CSV), review every row, then import. Spots duplicates, rows with no date, loan balances mixed in with expenses, and the same bill counted in two years. One-click undo.
 - **Tax reports** – totals by schedule label, net rent, owner shares, loan balances and a *check before sending* list (no rent recorded, missing interest months, unreviewed items, missing receipts)
@@ -73,6 +74,10 @@ In `docker-compose.yml`, replace `build: .` with `image: ghcr.io/mdburlace/renta
 - *Claimable %* reduces a transaction to its deductible share (e.g. a loan partly used privately)
 - Categories mapped to *Capital / non-deductible* (improvements, principal repayments) are tracked for the
   CGT cost base but excluded from the schedule totals
+- *Owner contribution* / *Owner drawing* record money moving between an owner and the property. They name the
+  owner, never count as income or expenses, and appear on their own "Owner funding" section and Excel sheet.
+  Record the bills that money paid for as normal expenses. Co-owners' income and expenses are still split by
+  ownership share, whoever funded them.
 
 This app organises your records; it isn't tax advice. Your accountant decides how items are treated
 (e.g. repairs vs capital improvements, depreciation).

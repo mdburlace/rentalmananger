@@ -129,3 +129,52 @@ def test_viewer_cannot_edit(client, prop, cats):
                                                "date": "2025-09-01", "amount": 10})
     assert r.status_code == 403
     assert TestClient(client.app).get("/api/properties").status_code == 401
+
+
+def test_owner_contributions_and_drawings(client, prop, owners, cats):
+    a, b = owners
+    contrib, drawing, water = cat_id(cats, "Owner contribution"), cat_id(cats, "Owner drawing"), cat_id(cats, "Water")
+    before = client.get("/api/reports/fy", params={"fy": 2026, "property_id": prop["id"]}).json()["properties"][0]["totals"]
+
+    base = {"property_id": prop["id"], "date": "2025-09-01"}
+    # owner is required, and must be on the title
+    r = client.post("/api/transactions", json={**base, "category_id": contrib, "amount": 500})
+    assert r.status_code == 400 and "which owner" in r.json()["detail"]
+    outsider = client.post("/api/owners", json={"name": "Not On Title"}).json()
+    r = client.post("/api/transactions", json={**base, "category_id": contrib, "amount": 500, "owner_id": outsider["id"]})
+    assert r.status_code == 400 and "isn't an owner" in r.json()["detail"]
+
+    r = client.post("/api/transactions", json={**base, "category_id": contrib, "amount": 500, "owner_id": a["id"],
+                                               "deductible_percent": 50})
+    assert r.status_code == 201, r.text
+    t = r.json()
+    assert t["kind"] == "transfer" and t["owner_name"] == "Owner A" and t["deductible_percent"] == 100
+    client.post("/api/transactions", json={**base, "category_id": contrib, "amount": 300, "owner_id": a["id"]})
+    client.post("/api/transactions", json={**base, "category_id": drawing, "amount": 120, "owner_id": b["id"]})
+
+    rep = client.get("/api/reports/fy", params={"fy": 2026, "property_id": prop["id"]}).json()
+    p = rep["properties"][0]
+    assert p["totals"] == before, "contributions/drawings must not change income, expenses or net rent"
+    funding = {f["owner_name"]: f for f in p["owner_funding"]}
+    assert funding["Owner A"]["contributed"] == 800.0 and funding["Owner A"]["net"] == 800.0
+    assert funding["Owner B"]["drawn"] == 120.0 and funding["Owner B"]["net"] == -120.0
+    assert rep["totals"]["contributed"] == 800.0 and rep["totals"]["drawn"] == 120.0
+
+    # moving an ordinary expense to a contribution in bulk is refused (no owner)
+    w = client.post("/api/transactions", json={**base, "category_id": water, "amount": 50}).json()
+    assert w["owner_id"] is None
+    r = client.post("/api/transactions/bulk", json={"ids": [w["id"]], "category_id": contrib})
+    assert r.status_code == 400
+    # switching a contribution back to an expense clears the owner
+    back = client.patch(f"/api/transactions/{t['id']}", json={"category_id": water}).json()
+    assert back["owner_id"] is None and back["kind"] == "expense"
+    client.delete(f"/api/transactions/{t['id']}")
+    client.delete(f"/api/transactions/{w['id']}")
+
+    wb = load_workbook(io.BytesIO(client.get("/api/reports/fy/export.xlsx", params={"fy": 2026}).content))
+    assert "Owner funding" in wb.sheetnames
+    rows = [[c.value for c in row] for row in wb["Owner funding"].iter_rows(min_row=4)]
+    assert ["Test St", "Owner A", 300.0, 0.0, 300.0] in rows
+    sched = [[c.value for c in row] for row in wb["Rental schedule"].iter_rows()]
+    assert not any(isinstance(v, str) and "Owner contribution" in v for row in sched for v in row)
+    assert client.get("/api/transactions", params={"kind": "transfer"}).json()["total"] == 2

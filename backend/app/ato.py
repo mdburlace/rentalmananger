@@ -13,7 +13,7 @@ from dataclasses import dataclass
 class AtoLabel:
     key: str
     label: str
-    kind: str  # income | expense | excluded
+    kind: str  # income | expense | excluded | transfer
     order: int
     help: str = ""
 
@@ -43,7 +43,13 @@ ATO_LABELS: list[AtoLabel] = [
     AtoLabel("sundry", "Sundry rental expenses", "expense", 28),
     AtoLabel("excluded", "Capital / non-deductible (tracked, not claimed)", "excluded", 90,
              "Improvements, purchase costs, principal repayments – kept for the CGT cost base"),
+    AtoLabel("owner_contribution", "Owner contribution (funds introduced)", "transfer", 95,
+             "Money an owner puts in, e.g. to cover a shortfall – not income, not on the schedule"),
+    AtoLabel("owner_drawing", "Owner drawing (funds withdrawn)", "transfer", 96,
+             "Money paid out to an owner – not an expense, not on the schedule"),
 ]
+
+TRANSFER_KEYS = {a.key for a in ATO_LABELS if a.kind == "transfer"}
 
 ATO_BY_KEY = {a.key: a for a in ATO_LABELS}
 
@@ -73,4 +79,6 @@ DEFAULT_CATEGORIES: list[tuple[str, str, list[str]]] = [
     ("Sundry", "sundry", ["sundry"]),
     ("Capital improvement", "excluded", ["renovation", "improvement"]),
     ("Loan principal repayment", "excluded", ["principal"]),
+    ("Owner contribution", "owner_contribution", ["owner contribution", "funds introduced", "capital contribution", "top up", "top-up"]),
+    ("Owner drawing", "owner_drawing", ["owner drawing", "drawing", "distribution to owner"]),
 ]

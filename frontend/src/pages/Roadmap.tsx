@@ -1,9 +1,10 @@
 const PHASES: { name: string; status: "done" | "next" | "planned" | "exploring"; area: string; items: string[] }[] = [
-  { name: "Income, expenses & accountant reporting", status: "done", area: "v0.1 – you are here", items: [
+  { name: "Income, expenses & accountant reporting", status: "done", area: "v0.2 – you are here", items: [
     "Properties, ownership splits and per-year rental schedule facts",
     "Income & expenses with receipts, private-use apportionment",
     "Categories mapped to ATO rental schedule labels",
     "Loans with 30 June balances",
+    "Owner contributions & drawings, reported separately from tax figures",
     "Spreadsheet / bank CSV import with duplicate checks and undo",
     "FY report, owner shares, pre-tax checks, accountant pack (Excel + CSV + receipts)",
     "Read-only accountant login",

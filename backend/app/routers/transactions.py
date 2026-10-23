@@ -10,11 +10,11 @@ from fastapi.responses import FileResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from ..ato import ATO_BY_KEY
+from ..ato import ATO_BY_KEY, TRANSFER_KEYS
 from ..config import get_settings
 from ..db import get_db
 from ..fy import fy_bounds
-from ..models import Attachment, Category, Transaction, User
+from ..models import Attachment, Category, Owner, Transaction, User
 from ..money import to_cents
 from ..schemas import AttachmentOut, BulkUpdate, TransactionIn, TransactionOut, TransactionPatch
 from ..security import can_edit, can_view
@@ -36,6 +36,24 @@ def get_txn(db: Session, user: User, txn_id: int) -> Transaction:
     if not t or t.portfolio_id != user.portfolio_id:
         raise HTTPException(404, "Transaction not found")
     return t
+
+
+def check_owner(db: Session, user: User, t: Transaction) -> None:
+    """Owner contributions/drawings must name an owner of that property; other
+    transactions don't carry an owner."""
+    cat = db.get(Category, t.category_id)
+    if cat.ato_key not in TRANSFER_KEYS:
+        t.owner_id = None
+        return
+    if not t.owner_id:
+        raise HTTPException(400, "Choose which owner put in or took out the money")
+    owner = db.get(Owner, t.owner_id)
+    if not owner or owner.portfolio_id != user.portfolio_id:
+        raise HTTPException(400, "Unknown owner")
+    prop = get_property(db, user, t.property_id)
+    if prop.ownerships and t.owner_id not in {o.owner_id for o in prop.ownerships}:
+        raise HTTPException(400, f"{owner.name} isn't an owner of {prop.name}")
+    t.deductible_percent = 100
 
 
 def filtered_query(user: User, *, fy: int | None = None, property_id: int | None = None,
@@ -73,7 +91,7 @@ def filtered_query(user: User, *, fy: int | None = None, property_id: int | None
 @router.get("/transactions")
 def list_transactions(
     fy: int | None = None, property_id: int | None = None, category_id: int | None = None,
-    kind: str | None = Query(default=None, pattern="^(income|expense|excluded)$"), q: str | None = None,
+    kind: str | None = Query(default=None, pattern="^(income|expense|excluded|transfer)$"), q: str | None = None,
     needs_review: bool | None = None, missing_receipt: bool | None = None,
     date_from: dt.date | None = None, date_to: dt.date | None = None,
     limit: int = Query(default=500, le=5000), offset: int = 0,
@@ -99,6 +117,7 @@ def create_transaction(body: TransactionIn, user: User = Depends(can_edit), db: 
     get_category(db, user, body.category_id)
     data = body.model_dump(exclude={"amount"})
     t = Transaction(portfolio_id=user.portfolio_id, amount_cents=to_cents(body.amount), created_by=user.id, **data)
+    check_owner(db, user, t)
     db.add(t)
     db.commit()
     db.refresh(t)
@@ -118,6 +137,7 @@ def update_transaction(txn_id: int, body: TransactionPatch, user: User = Depends
         t.amount_cents = to_cents(data.pop("amount"))
     for k, v in data.items():
         setattr(t, k, v)
+    check_owner(db, user, t)
     db.commit()
     db.refresh(t)
     return transaction_out(t)
@@ -159,6 +179,11 @@ def bulk_update(body: BulkUpdate, user: User = Depends(can_edit), db: Session = 
             t.property_id = body.property_id
         if body.needs_review is not None:
             t.needs_review = body.needs_review
+        try:
+            check_owner(db, user, t)
+        except HTTPException as e:
+            db.rollback()
+            raise HTTPException(400, f"{t.date:%d/%m/%Y} ${t.amount_cents / 100:,.2f}: {e.detail} – edit it individually")
     db.commit()
     return {"updated": len(txns)}
 

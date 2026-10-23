@@ -22,6 +22,7 @@ from openpyxl import load_workbook
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ..ato import TRANSFER_KEYS
 from ..fy import fy_bounds, fy_from_text, fy_label, fy_of
 from ..models import Category, Transaction, User
 from ..money import from_cents, to_cents
@@ -256,7 +257,7 @@ def _flag_duplicates(db: Session, user: User, property_id: int, rows: list[Previ
     for i, a in enumerate(live):
         for b in live[i + 1:]:
             if (a.category_id == b.category_id and a.amount == b.amount and a.fy != b.fy
-                    and cats[a.category_id].ato_key not in ("interest", "gross_rent")
+                    and cats[a.category_id].ato_key not in ("interest", "gross_rent", *TRANSFER_KEYS)
                     and abs((a.date - b.date).days) < 200):
                 for x, y in ((a, b), (b, a)):
                     x.needs_review = True
@@ -272,6 +273,8 @@ def commit(db: Session, user: User, property_id: int, filename: str, rows: list[
     db.flush()
     created = balances = 0
     cats = {c.id: c for c in db.scalars(select(Category).where(Category.portfolio_id == user.portfolio_id)).all()}
+    from ..models import Owner
+    owner_ids = set(db.scalars(select(Owner.id).where(Owner.portfolio_id == user.portfolio_id)).all())
     for r in rows:
         action = r.get("action")
         if action == "skip":
@@ -297,10 +300,16 @@ def commit(db: Session, user: User, property_id: int, filename: str, rows: list[
         if cid not in cats:
             raise ValueError(f"Row {r.get('row_id')}: choose a category")
         notes = "; ".join(i for i in r.get("issues", []) if "No date" in i or "two years" in i or "sheet" in i) or None
+        is_transfer = cats[cid].ato_key in TRANSFER_KEYS
+        if r.get("owner_id") and r["owner_id"] not in owner_ids:
+            raise ValueError(f"Row {r.get('row_id')}: unknown owner")
+        if is_transfer and not r.get("owner_id"):
+            notes = "; ".join(x for x in [notes, "Choose which owner"] if x)
         db.add(Transaction(
             portfolio_id=user.portfolio_id, property_id=property_id, category_id=cid, date=d,
             amount_cents=to_cents(r["amount"]), description=(r.get("description") or "")[:500] or None,
-            needs_review=bool(r.get("needs_review")), notes=notes, source="import",
+            needs_review=bool(r.get("needs_review")) or (is_transfer and not r.get("owner_id")),
+            owner_id=r.get("owner_id") if is_transfer else None, notes=notes, source="import",
             import_batch_id=batch.id, created_by=user.id,
         ))
         created += 1

@@ -162,6 +162,7 @@ class TransactionIn(BaseModel):
     period_start: dt.date | None = None
     period_end: dt.date | None = None
     needs_review: bool = False
+    owner_id: int | None = None
     notes: str | None = None
 
 
@@ -177,6 +178,7 @@ class TransactionPatch(BaseModel):
     period_start: dt.date | None = None
     period_end: dt.date | None = None
     needs_review: bool | None = None
+    owner_id: int | None = None
     notes: str | None = None
 
 
@@ -206,6 +208,8 @@ class TransactionOut(BaseModel):
     period_start: dt.date | None
     period_end: dt.date | None
     needs_review: bool
+    owner_id: int | None
+    owner_name: str | None
     notes: str | None
     source: str
     attachments: list[AttachmentOut]

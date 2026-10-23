@@ -18,6 +18,7 @@ Status key: ✅ shipped · 🔜 next · 🗓 planned · 💭 exploring
 - ✅ Categories you name yourself, each mapped to an **ATO rental property schedule** label
 - ✅ Private-use apportionment per transaction (claimable %) and per loan
 - ✅ Loans with 30 June balances and interest rates
+- ✅ Owner contributions and drawings (v0.2) – who funded shortfalls, kept separate from the tax figures
 - ✅ Spreadsheet & bank CSV import with preview, duplicate detection, "this bill appears in two years" warnings, learned category mappings and one-click undo
 - ✅ Financial-year report: totals by schedule label, owner shares, loan balances and a "check before sending" list (missing rent, missing interest months, unreviewed items, missing receipts)
 - ✅ Accountant pack: Excel report + CSV + every receipt in one ZIP; printable report

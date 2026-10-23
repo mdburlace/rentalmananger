@@ -7,7 +7,7 @@ export interface Property {
   postcode: string | null; property_type: string | null; purchase_date: string | null; purchase_price: number | null;
   first_rented_date: string | null; notes: string | null; archived: boolean; ownerships: Ownership[]; full_address: string;
 }
-export type Kind = "income" | "expense" | "excluded";
+export type Kind = "income" | "expense" | "excluded" | "transfer";
 export interface AtoLabel { key: string; label: string; kind: Kind; order: number; help: string }
 export interface Category {
   id: number; name: string; ato_key: string; ato_label: string; kind: Kind; keywords: string | null;
@@ -18,7 +18,8 @@ export interface Transaction {
   id: number; property_id: number; property_name: string; category_id: number; category_name: string; ato_key: string;
   kind: Kind; date: string; fy: number; amount: number; deductible_percent: number; claimable_amount: number;
   description: string | null; payee: string | null; reference: string | null; period_start: string | null;
-  period_end: string | null; needs_review: boolean; notes: string | null; source: string; attachments: Attachment[];
+  period_end: string | null; needs_review: boolean; owner_id: number | null; owner_name: string | null;
+  notes: string | null; source: string; attachments: Attachment[];
 }
 export interface LoanBalance { id: number; as_of: string; balance: number; interest_rate: number | null }
 export interface Loan {
@@ -28,19 +29,22 @@ export interface Loan {
 }
 export interface Check { level: "error" | "warning" | "info"; message: string; property?: string }
 export interface ReportLine { key: string; label: string; amount: number; gross_amount: number; categories: { name: string; amount: number }[] }
+export interface OwnerFunding { owner_id: number | null; owner_name: string; contributed: number; drawn: number; net: number }
 export interface PropertyReport {
   property: { id: number; name: string; address: string; purchase_date: string | null; purchase_price: number | null; first_rented_date: string | null };
   year: { weeks_rented: number | null; weeks_available: number | null; loan_refinanced: boolean; notes: string | null };
   income: ReportLine[]; expenses: ReportLine[]; excluded: ReportLine[];
   totals: { income: number; expenses: number; net: number; excluded: number };
   owners: { owner_id: number | null; owner_name: string; share_percent: number; income: number; expenses: number; net: number }[];
+  owner_funding: OwnerFunding[];
   loans: { id: number; name: string; lender: string | null; account_hint: string | null; rental_use_percent: number; balance: number | null; balance_date: string | null; interest_rate: number | null }[];
   transaction_count: number; checks: Check[];
 }
 export interface FyReport {
   fy: number; fy_label: string; start: string; end: string; properties: PropertyReport[];
-  totals: { income: number; expenses: number; net: number; excluded: number };
+  totals: { income: number; expenses: number; net: number; excluded: number; contributed: number; drawn: number };
   owners: { owner_name: string; income: number; expenses: number; net: number }[];
+  owner_funding: OwnerFunding[];
 }
 export interface YearSummary { fy: number; fy_label: string; income: number; expenses: number; net: number; by_label: Record<string, number> }
 export interface Dashboard {
@@ -52,7 +56,7 @@ export interface Dashboard {
 export interface PreviewRow {
   row_id: string; sheet: string; row_number: number; raw_date: string | null; description: string; amount: number | null;
   date: string | null; fy: number | null; category_id: number | null; suggested_category_id: number | null;
-  action: "transaction" | "loan_balance" | "skip"; needs_review: boolean; issues: string[]; duplicate_of: number | null;
+  action: "transaction" | "loan_balance" | "skip"; needs_review: boolean; owner_id?: number | null; issues: string[]; duplicate_of: number | null;
   interest_rate: number | null;
 }
 

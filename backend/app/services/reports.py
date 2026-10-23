@@ -8,7 +8,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..ato import ATO_BY_KEY, ATO_LABELS
+from ..ato import ATO_BY_KEY, ATO_LABELS, TRANSFER_KEYS
 from ..fy import fy_bounds, fy_label, fy_of
 from ..models import Loan, Property, PropertyYear, Transaction, User
 from ..money import apply_percent, from_cents
@@ -44,6 +44,9 @@ def _checks(db: Session, prop: Property, fy: int, txns: list[Transaction], py: P
         add("warning", "No rent income recorded for this year. Add rent received (or the agent's EOFY statement total).")
     if not py or py.weeks_rented is None:
         add("info", "Weeks rented this year hasn't been entered (the rental schedule asks for it).")
+    unowned = [t for t in txns if t.category.ato_key in TRANSFER_KEYS and not t.owner_id]
+    if unowned:
+        add("warning", f"{len(unowned)} owner contribution/drawing(s) don't say which owner – edit them to choose one.")
     review = [t for t in txns if t.needs_review]
     if review:
         add("warning", f"{len(review)} transaction(s) are flagged for review.")
@@ -76,7 +79,7 @@ def _checks(db: Session, prop: Property, fy: int, txns: list[Transaction], py: P
         for o in near:
             if (o.id != t.id and fy_of(o.date) != fy and o.category_id == t.category_id
                     and o.amount_cents == t.amount_cents and abs((o.date - t.date).days) < 200
-                    and t.category.ato_key not in ("interest", "gross_rent")):
+                    and t.category.ato_key not in ("interest", "gross_rent", *TRANSFER_KEYS)):
                 key = tuple(sorted((t.id, o.id)))
                 if key in seen:
                     continue
@@ -84,6 +87,26 @@ def _checks(db: Session, prop: Property, fy: int, txns: list[Transaction], py: P
                 add("warning", f"{t.category.name} ${from_cents(t.amount_cents):,.2f} on {t.date:%d/%m/%Y} also appears "
                                f"on {o.date:%d/%m/%Y} (FY{fy_label(fy_of(o.date))}) – check it isn't counted twice.")
     return out
+
+
+def owner_funding(txns: list[Transaction], prop: Property | None = None) -> list[dict]:
+    """Money owners put in (contributions) and took out (drawings). Not income or
+    expenses – reported separately so you can see who has funded what."""
+    rows: dict[str, dict] = {}
+    if prop:
+        for o in prop.ownerships:
+            rows[o.owner.name] = {"owner_id": o.owner_id, "owner_name": o.owner.name, "contributed": 0, "drawn": 0}
+    for t in txns:
+        key = t.category.ato_key
+        if key not in TRANSFER_KEYS:
+            continue
+        name = t.owner.name if t.owner else "Owner not recorded"
+        r = rows.setdefault(name, {"owner_id": t.owner_id, "owner_name": name, "contributed": 0, "drawn": 0})
+        r["contributed" if key == "owner_contribution" else "drawn"] += t.amount_cents
+    if not any(r["contributed"] or r["drawn"] for r in rows.values()):
+        return []
+    return [{**r, "contributed": from_cents(r["contributed"]), "drawn": from_cents(r["drawn"]),
+             "net": from_cents(r["contributed"] - r["drawn"])} for r in rows.values()]
 
 
 def property_fy_report(db: Session, user: User, prop: Property, fy: int, txns: list[Transaction]) -> dict:
@@ -154,6 +177,7 @@ def property_fy_report(db: Session, user: User, prop: Property, fy: int, txns: l
         "totals": {"income": from_cents(income), "expenses": from_cents(expenses), "net": from_cents(net),
                    "excluded": from_cents(excluded)},
         "owners": owner_rows,
+        "owner_funding": owner_funding(txns, prop),
         "loans": loans,
         "transaction_count": len(txns),
         "checks": _checks(db, prop, fy, txns, py, claim),
@@ -179,13 +203,16 @@ def fy_report(db: Session, user: User, fy: int, property_id: int | None = None) 
                 ot[k] = round(ot[k] + o[k], 2)
 
     start, end = fy_bounds(fy)
+    funding = owner_funding(txns)
+    totals = {k: round(sum(r["totals"][k] for r in reports), 2) for k in ("income", "expenses", "net", "excluded")}
+    totals["contributed"] = round(sum(f["contributed"] for f in funding), 2)
+    totals["drawn"] = round(sum(f["drawn"] for f in funding), 2)
     return {
         "fy": fy, "fy_label": fy_label(fy), "start": start, "end": end,
         "properties": reports,
-        "totals": {
-            k: round(sum(r["totals"][k] for r in reports), 2) for k in ("income", "expenses", "net", "excluded")
-        },
+        "totals": totals,
         "owners": list(owner_totals.values()),
+        "owner_funding": funding,
     }
 
 

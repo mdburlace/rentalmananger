@@ -69,7 +69,7 @@ export function PropertySelect({ value, onChange, allowAll = true, label = "All 
 
 export function CategorySelect({ value, onChange, includeEmpty, required }: { value: number | "" | null; onChange: (id: number | "") => void; includeEmpty?: string; required?: boolean }) {
   const { categories } = useSession();
-  const groups: [string, string][] = [["income", "Income"], ["expense", "Expenses"], ["excluded", "Not claimed"]];
+  const groups: [string, string][] = [["income", "Income"], ["expense", "Expenses"], ["excluded", "Not claimed"], ["transfer", "Owner funds (not income or expense)"]];
   return (
     <select value={value ?? ""} required={required} onChange={(e) => onChange(e.target.value ? Number(e.target.value) : "")}>
       {includeEmpty !== undefined && <option value="">{includeEmpty}</option>}
@@ -83,8 +83,21 @@ export function CategorySelect({ value, onChange, includeEmpty, required }: { va
 }
 
 export function KindBadge({ kind }: { kind: string }) {
-  const label = kind === "income" ? "Income" : kind === "expense" ? "Expense" : "Not claimed";
+  const label = { income: "Income", expense: "Expense", excluded: "Not claimed", transfer: "Owner funds" }[kind] ?? kind;
   return <span className={`badge b-${kind}`}>{label}</span>;
+}
+
+/** Owners on a property's title – the only people who can contribute or draw funds for it. */
+export function OwnerSelect({ propertyId, value, onChange, disabled }: { propertyId: number | ""; value: number | "" | null | undefined; onChange: (id: number | "") => void; disabled?: boolean }) {
+  const { properties } = useSession();
+  const prop = properties.find((p) => p.id === propertyId);
+  const owners = prop?.ownerships ?? [];
+  return (
+    <select required disabled={disabled || !prop} value={value ?? ""} onChange={(e) => onChange(e.target.value ? Number(e.target.value) : "")}>
+      <option value="">{!prop ? "Choose the property first" : owners.length ? "Choose owner…" : "Set ownership on the property first"}</option>
+      {owners.map((o) => <option key={o.owner_id} value={o.owner_id}>{o.owner_name} ({o.share_percent}%)</option>)}
+    </select>
+  );
 }
 
 export function ErrorBox({ error }: { error: string | null }) {

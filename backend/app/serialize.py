@@ -77,6 +77,8 @@ def transaction_out(t: Transaction) -> TransactionOut:
         period_start=t.period_start,
         period_end=t.period_end,
         needs_review=t.needs_review,
+        owner_id=t.owner_id,
+        owner_name=t.owner.name if t.owner else None,
         notes=t.notes,
         source=t.source,
         attachments=[AttachmentOut.model_validate(a) for a in t.attachments],

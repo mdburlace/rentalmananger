@@ -1,19 +1,20 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api, currentFy, fmtDate, money, qs, today, Transaction } from "../api";
-import { CategorySelect, Drawer, ErrorBox, KindBadge, PropertySelect, useLoad, useLocalState, useSession } from "../components";
+import { CategorySelect, Drawer, ErrorBox, KindBadge, OwnerSelect, PropertySelect, useLoad, useLocalState, useSession } from "../components";
 
 type Draft = {
   property_id: number | ""; category_id: number | ""; date: string; amount: string; deductible_percent: string;
   payee: string; description: string; reference: string; period_start: string; period_end: string; needs_review: boolean; notes: string;
+  owner_id: number | "";
 };
 
 function toDraft(t: Transaction | null, defaults: Partial<Draft>): Draft {
-  if (!t) return { property_id: "", category_id: "", date: today(), amount: "", deductible_percent: "100", payee: "", description: "", reference: "", period_start: "", period_end: "", needs_review: false, notes: "", ...defaults };
+  if (!t) return { property_id: "", category_id: "", date: today(), amount: "", deductible_percent: "100", payee: "", description: "", reference: "", period_start: "", period_end: "", needs_review: false, notes: "", owner_id: "", ...defaults };
   return {
     property_id: t.property_id, category_id: t.category_id, date: t.date, amount: String(t.amount), deductible_percent: String(t.deductible_percent),
     payee: t.payee ?? "", description: t.description ?? "", reference: t.reference ?? "", period_start: t.period_start ?? "", period_end: t.period_end ?? "",
-    needs_review: t.needs_review, notes: t.notes ?? "",
+    needs_review: t.needs_review, notes: t.notes ?? "", owner_id: t.owner_id ?? "",
   };
 }
 
@@ -25,6 +26,7 @@ export function TransactionEditor({ txn, onClose, onSaved, defaults = {} }: { tx
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const cat = categories.find((c) => c.id === d.category_id);
+  const isTransfer = cat?.kind === "transfer";
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((x) => ({ ...x, [k]: v }));
 
   const save = async (e: FormEvent, again = false) => {
@@ -34,6 +36,8 @@ export function TransactionEditor({ txn, onClose, onSaved, defaults = {} }: { tx
       ...d, amount: d.amount, deductible_percent: d.deductible_percent || "100",
       period_start: d.period_start || null, period_end: d.period_end || null,
       payee: d.payee || null, description: d.description || null, reference: d.reference || null, notes: d.notes || null,
+      owner_id: isTransfer && d.owner_id ? d.owner_id : null,
+      ...(isTransfer ? { deductible_percent: "100", period_start: null, period_end: null } : {}),
     };
     try {
       const saved = current
@@ -83,18 +87,26 @@ export function TransactionEditor({ txn, onClose, onSaved, defaults = {} }: { tx
         </label>
         <label className="field">Category
           <CategorySelect required value={d.category_id} onChange={(v) => set("category_id", v)} includeEmpty="Choose…" />
-          {cat && <small>{cat.kind === "excluded" ? "Tracked but not claimed" : `Schedule: ${cat.ato_label}`}</small>}
+          {cat && <small>{cat.kind === "excluded" ? "Tracked but not claimed" : isTransfer ? "Not income or an expense – kept off the tax schedule" : `Schedule: ${cat.ato_label}`}</small>}
         </label>
+        {isTransfer && (
+          <label className="field full">{cat?.ato_key === "owner_drawing" ? "Paid to which owner?" : "Which owner put the money in?"}
+            <OwnerSelect propertyId={d.property_id} value={d.owner_id} onChange={(v) => set("owner_id", v)} disabled={ro} />
+            <small>Recorded so you can see who has funded the property. Expenses it paid for are still recorded separately as expenses.</small>
+          </label>
+        )}
         <label className="field">Date paid / received<input type="date" required disabled={ro} value={d.date} onChange={(e) => set("date", e.target.value)} /></label>
-        <label className="field">Amount (incl. GST)<input inputMode="decimal" required disabled={ro} placeholder="0.00" value={d.amount} onChange={(e) => set("amount", e.target.value)} /></label>
-        <label className="field">Payee / from<input disabled={ro} value={d.payee} onChange={(e) => set("payee", e.target.value)} placeholder="e.g. Youi, Council, Urban Utilities" /></label>
+        <label className="field">{isTransfer ? "Amount" : "Amount (incl. GST)"}<input inputMode="decimal" required disabled={ro} placeholder="0.00" value={d.amount} onChange={(e) => set("amount", e.target.value)} /></label>
+        <label className="field">{isTransfer ? "Paid from / to" : "Payee / from"}<input disabled={ro} value={d.payee} onChange={(e) => set("payee", e.target.value)} placeholder={isTransfer ? "e.g. owner's personal account" : "e.g. Youi, Council, Urban Utilities"} /></label>
         <label className="field">Reference<input disabled={ro} value={d.reference} onChange={(e) => set("reference", e.target.value)} placeholder="Invoice / receipt no." /></label>
         <label className="field full">Description<input disabled={ro} value={d.description} onChange={(e) => set("description", e.target.value)} /></label>
-        <label className="field">Bill period from<input type="date" disabled={ro} value={d.period_start} onChange={(e) => set("period_start", e.target.value)} /></label>
-        <label className="field">Bill period to<input type="date" disabled={ro} value={d.period_end} onChange={(e) => set("period_end", e.target.value)} /></label>
-        <label className="field">Claimable %<small>Lower this for private use (e.g. a partly private loan)</small>
-          <input type="number" min={0} max={100} step="0.01" disabled={ro} value={d.deductible_percent} onChange={(e) => set("deductible_percent", e.target.value)} />
-        </label>
+        {!isTransfer && <>
+          <label className="field">Bill period from<input type="date" disabled={ro} value={d.period_start} onChange={(e) => set("period_start", e.target.value)} /></label>
+          <label className="field">Bill period to<input type="date" disabled={ro} value={d.period_end} onChange={(e) => set("period_end", e.target.value)} /></label>
+          <label className="field">Claimable %<small>Lower this for private use (e.g. a partly private loan)</small>
+            <input type="number" min={0} max={100} step="0.01" disabled={ro} value={d.deductible_percent} onChange={(e) => set("deductible_percent", e.target.value)} />
+          </label>
+        </>}
         <div className="field" style={{ justifyContent: "flex-end" }}>
           <label className="check"><input type="checkbox" disabled={ro} checked={d.needs_review} onChange={(e) => set("needs_review", e.target.checked)} />Flag for review</label>
         </div>
@@ -140,8 +152,13 @@ export default function TransactionsPage() {
   );
   useEffect(() => setSel(new Set()), [data]);
   const totals = useMemo(() => {
-    const t = { income: 0, expense: 0 };
-    data?.items.forEach((x) => { if (x.kind === "income") t.income += x.claimable_amount; else if (x.kind === "expense") t.expense += x.claimable_amount; });
+    const t = { income: 0, expense: 0, contributed: 0, drawn: 0 };
+    data?.items.forEach((x) => {
+      if (x.kind === "income") t.income += x.claimable_amount;
+      else if (x.kind === "expense") t.expense += x.claimable_amount;
+      else if (x.ato_key === "owner_contribution") t.contributed += x.amount;
+      else if (x.ato_key === "owner_drawing") t.drawn += x.amount;
+    });
     return t;
   }, [data]);
 
@@ -155,7 +172,7 @@ export default function TransactionsPage() {
   return (
     <>
       <div className="page-head">
-        <div><h1>Transactions</h1><p>{data ? `${data.total} shown · income ${money(totals.income)} · expenses ${money(totals.expense)}` : " "}</p></div>
+        <div><h1>Transactions</h1><p>{data ? `${data.total} shown · income ${money(totals.income)} · expenses ${money(totals.expense)}${totals.contributed ? ` · owners put in ${money(totals.contributed)}` : ""}${totals.drawn ? ` · drawn ${money(totals.drawn)}` : ""}` : " "}</p></div>
         {canEdit && <div className="toolbar"><button className="primary" onClick={() => setEditing(null)} disabled={!properties.length}>+ Add transaction</button></div>}
       </div>
       <ErrorBox error={error} />
@@ -167,7 +184,7 @@ export default function TransactionsPage() {
           </select>
           {properties.length > 1 && <PropertySelect value={prop} onChange={setProp} />}
           <select value={kind} onChange={(e) => setKind(e.target.value)} style={{ width: "auto" }} aria-label="Type">
-            <option value="">Income & expenses</option><option value="income">Income</option><option value="expense">Expenses</option><option value="excluded">Not claimed</option>
+            <option value="">Income & expenses</option><option value="income">Income</option><option value="expense">Expenses</option><option value="excluded">Not claimed</option><option value="transfer">Owner funds</option>
           </select>
           <div style={{ minWidth: 180, maxWidth: 240 }}><CategorySelect value={cat} onChange={setCat} includeEmpty="All categories" /></div>
           <input type="search" placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} style={{ maxWidth: 200 }} />
@@ -199,7 +216,7 @@ export default function TransactionsPage() {
                   {canEdit && <td onClick={(e) => e.stopPropagation()}><input type="checkbox" aria-label="Select" checked={sel.has(t.id)} onChange={() => { const n = new Set(sel); n.has(t.id) ? n.delete(t.id) : n.add(t.id); setSel(n); }} /></td>}
                   <td>{fmtDate(t.date)}</td>
                   <td>{t.category_name}<div className="sub"><KindBadge kind={t.kind} /></div></td>
-                  <td className="hide-sm">{t.payee && <b>{t.payee} </b>}{t.description}{t.notes && <div className="sub">{t.notes}</div>}</td>
+                  <td className="hide-sm">{t.owner_name && <b>{t.owner_name} </b>}{t.payee && <b>{t.payee} </b>}{t.description}{t.notes && <div className="sub">{t.notes}</div>}</td>
                   {properties.length > 1 && <td className="hide-sm">{t.property_name}</td>}
                   <td className={`num ${t.kind === "income" ? "pos" : ""}`}>
                     {money(t.amount)}
