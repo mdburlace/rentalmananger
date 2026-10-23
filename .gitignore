@@ -1,0 +1,14 @@
+node_modules/
+dist/
+__pycache__/
+.pytest_cache/
+*.pyc
+.env
+data/
+*.db
+*.db-shm
+*.db-wal
+.secret_key
+# never commit real financial records
+*.xlsx
+!backend/tests/fixtures/*.xlsx

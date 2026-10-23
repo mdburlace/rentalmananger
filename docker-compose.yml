@@ -1,0 +1,23 @@
+# Portainer: Stacks → Add stack → Repository → https://github.com/mdburlace/rentalmananger
+# (compose path: docker-compose.yml). Portainer builds the image from this repo.
+# Or swap `build: .` for `image: ghcr.io/mdburlace/rentalmananger:latest` to pull the image
+# published by the GitHub Action instead of building on the server.
+services:
+  rentalmanager:
+    build: .
+    # image: ghcr.io/mdburlace/rentalmananger:latest
+    container_name: rentalmanager
+    restart: unless-stopped
+    ports:
+      - "${RM_PORT:-8085}:8000"
+    environment:
+      TZ: Australia/Brisbane
+      # Set to true once it's behind HTTPS (e.g. Nginx Proxy Manager / Traefik / Cloudflare Tunnel)
+      RM_COOKIE_SECURE: "${RM_COOKIE_SECURE:-false}"
+      # Optional – otherwise a key is generated and kept in the data volume
+      # RM_SECRET_KEY: change-me-to-a-long-random-string
+    volumes:
+      - rentalmanager-data:/data   # database + receipts – back this up
+
+volumes:
+  rentalmanager-data:
