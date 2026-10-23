@@ -12,3 +12,4 @@ data/
 # never commit real financial records
 *.xlsx
 !backend/tests/fixtures/*.xlsx
+*.tsbuildinfo
