@@ -39,6 +39,11 @@ In `docker-compose.yml`, replace `build: .` with `image: ghcr.io/mdburlace/renta
 **Data & backups** – everything (SQLite database, uploaded receipts, generated session key) lives in the
 `rentalmanager-data` volume mounted at `/data`. Back up that volume. Database migrations run automatically on start.
 
+**Forgot your password?** – open a console on the container (Portainer → Containers → rentalmanager → Console,
+or `docker exec -it rentalmanager sh`) and run `python -m app.reset_password` to list accounts, then
+`python -m app.reset_password you@example.com` to set a new password (you're prompted for it twice).
+Another admin can also reset passwords under **Settings → Users**.
+
 **HTTPS** – put it behind your reverse proxy (Nginx Proxy Manager, Traefik, Cloudflare Tunnel) and set
 `RM_COOKIE_SECURE=true`. This app holds financial records, so don't expose it over plain HTTP.
 
