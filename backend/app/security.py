@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
@@ -36,6 +37,39 @@ def create_token(user: User) -> str:
     return jwt.encode(payload, s.resolved_secret(), algorithm="HS256")
 
 
+RESET_PURPOSE = "pwreset"
+
+
+def _password_fingerprint(user: User) -> str:
+    # Ties a reset link to the current password: once the password changes, old links stop working.
+    return hashlib.sha256(user.password_hash.encode()).hexdigest()[:16]
+
+
+def create_reset_token(user: User) -> str:
+    s = get_settings()
+    payload = {
+        "sub": str(user.id),
+        "purpose": RESET_PURPOSE,
+        "ph": _password_fingerprint(user),
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=s.reset_link_minutes),
+    }
+    return jwt.encode(payload, s.resolved_secret(), algorithm="HS256")
+
+
+def user_from_reset_token(db: Session, token: str) -> User | None:
+    """Returns the user for a valid, unused, unexpired reset token, else None."""
+    try:
+        payload = jwt.decode(token, get_settings().resolved_secret(), algorithms=["HS256"])
+    except jwt.PyJWTError:
+        return None
+    if payload.get("purpose") != RESET_PURPOSE:
+        return None
+    user = db.get(User, int(payload["sub"]))
+    if not user or not user.is_active or payload.get("ph") != _password_fingerprint(user):
+        return None
+    return user
+
+
 def current_user(request: Request, db: Session = Depends(get_db)) -> User:
     token = request.cookies.get(COOKIE_NAME)
     auth = request.headers.get("authorization", "")
@@ -47,6 +81,8 @@ def current_user(request: Request, db: Session = Depends(get_db)) -> User:
         payload = jwt.decode(token, get_settings().resolved_secret(), algorithms=["HS256"])
     except jwt.PyJWTError:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Session expired")
+    if payload.get("purpose"):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not signed in")
     user = db.get(User, int(payload["sub"]))
     if not user or not user.is_active:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not signed in")

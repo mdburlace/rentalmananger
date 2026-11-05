@@ -46,6 +46,15 @@ class UserUpdate(BaseModel):
     password: str | None = Field(default=None, min_length=8, max_length=200)
 
 
+class ForgotPasswordIn(BaseModel):
+    email: str = Field(min_length=3, max_length=255)
+
+
+class ResetPasswordIn(BaseModel):
+    token: str = Field(min_length=10, max_length=2000)
+    new_password: str = Field(min_length=8, max_length=200)
+
+
 class PasswordChange(BaseModel):
     current_password: str
     new_password: str = Field(min_length=8, max_length=200)
