@@ -14,6 +14,14 @@ services:
       TZ: Australia/Brisbane
       # Set to true once it's behind HTTPS (e.g. Nginx Proxy Manager / Traefik / Cloudflare Tunnel)
       RM_COOKIE_SECURE: "${RM_COOKIE_SECURE:-false}"
+      # Optional – "Forgot password?" emails. Leave RM_SMTP_HOST blank to turn it off.
+      RM_PUBLIC_URL: "${RM_PUBLIC_URL:-}"
+      RM_SMTP_HOST: "${RM_SMTP_HOST:-}"
+      RM_SMTP_PORT: "${RM_SMTP_PORT:-587}"
+      RM_SMTP_SECURITY: "${RM_SMTP_SECURITY:-starttls}"
+      RM_SMTP_USERNAME: "${RM_SMTP_USERNAME:-}"
+      RM_SMTP_PASSWORD: "${RM_SMTP_PASSWORD:-}"
+      RM_SMTP_FROM: "${RM_SMTP_FROM:-}"
       # Optional – otherwise a key is generated and kept in the data volume
       # RM_SECRET_KEY: change-me-to-a-long-random-string
     volumes:

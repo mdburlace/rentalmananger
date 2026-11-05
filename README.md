@@ -52,6 +52,17 @@ In `docker-compose.yml`, replace `build: .` with `image: ghcr.io/mdburlace/renta
 | `RM_COOKIE_SECURE` | `false` | `true` when served over HTTPS |
 | `RM_SESSION_HOURS` | `336` | Sign-in lifetime |
 | `RM_MAX_UPLOAD_MB` | `25` | Max receipt/import size |
+| `RM_PUBLIC_URL` | request address | Address used in emailed links, e.g. `https://rent.example.com` |
+| `RM_SMTP_HOST` | – | SMTP server for "Forgot password?" emails (blank = feature off) |
+| `RM_SMTP_PORT` | `587` | SMTP port (465 for `ssl`) |
+| `RM_SMTP_SECURITY` | `starttls` | `starttls`, `ssl` or `none` |
+| `RM_SMTP_USERNAME` / `RM_SMTP_PASSWORD` | – | SMTP login (for Gmail, an App Password) |
+| `RM_SMTP_FROM` | username | From address, e.g. `Rental Manager <you@gmail.com>` |
+| `RM_RESET_LINK_MINUTES` | `60` | How long a reset link stays valid |
+
+**Password reset emails** – set the `RM_SMTP_*` variables (and `RM_PUBLIC_URL`) in the Portainer stack and a
+"Forgot password?" link appears on the sign-in page. It emails a one-time link that expires after an hour and
+stops working once the password has been changed.
 
 ---
 

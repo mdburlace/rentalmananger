@@ -12,7 +12,75 @@ import RoadmapPage from "./pages/Roadmap";
 
 type Me = { user: User; portfolio: { id: number; name: string } };
 
-function AuthScreen({ setup, onDone }: { setup: boolean; onDone: () => void }) {
+function ForgotScreen({ onBack }: { onBack: () => void }) {
+  const [email, setEmail] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const [sent, setSent] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true); setErr(null);
+    try {
+      const r = await api<{ message: string }>("/api/auth/forgot-password", { body: { email } });
+      setSent(r.message);
+    } catch (ex) { setErr((ex as Error).message); } finally { setBusy(false); }
+  };
+  return (
+    <div className="auth-wrap">
+      <form className="card auth-card stack" onSubmit={submit}>
+        <div>
+          <h1>Forgot password</h1>
+          <p className="muted" style={{ margin: 0 }}>Enter your login email and we'll send you a link to choose a new password.</p>
+        </div>
+        <ErrorBox error={err} />
+        {sent ? (
+          <div className="alert success" role="status">{sent} Check your inbox (and spam folder).</div>
+        ) : (
+          <>
+            <label className="field">Email<input type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} /></label>
+            <button className="primary" disabled={busy}>{busy ? "Please wait…" : "Email me a reset link"}</button>
+          </>
+        )}
+        <button type="button" className="link" onClick={onBack}>Back to sign in</button>
+      </form>
+    </div>
+  );
+}
+
+function ResetScreen({ token, onDone }: { token: string; onDone: () => void }) {
+  const [pw, setPw] = useState("");
+  const [pw2, setPw2] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (pw !== pw2) return setErr("Passwords don't match");
+    setBusy(true); setErr(null);
+    try {
+      await api("/api/auth/reset-password", { body: { token, new_password: pw } });
+      window.history.replaceState(null, "", "/");
+      onDone();
+    } catch (ex) { setErr((ex as Error).message); } finally { setBusy(false); }
+  };
+  const back = () => { window.history.replaceState(null, "", "/"); onDone(); };
+  return (
+    <div className="auth-wrap">
+      <form className="card auth-card stack" onSubmit={submit}>
+        <div>
+          <h1>Choose a new password</h1>
+          <p className="muted" style={{ margin: 0 }}>You'll be signed in once it's saved.</p>
+        </div>
+        <ErrorBox error={err} />
+        <label className="field">New password<small>At least 8 characters</small><input type="password" autoComplete="new-password" minLength={8} required value={pw} onChange={(e) => setPw(e.target.value)} /></label>
+        <label className="field">Confirm new password<input type="password" autoComplete="new-password" minLength={8} required value={pw2} onChange={(e) => setPw2(e.target.value)} /></label>
+        <button className="primary" disabled={busy}>{busy ? "Please wait…" : "Save password"}</button>
+        <button type="button" className="link" onClick={back}>Back to sign in</button>
+      </form>
+    </div>
+  );
+}
+
+function AuthScreen({ setup, onDone, onForgot }: { setup: boolean; onDone: () => void; onForgot?: () => void }) {
   const [f, setF] = useState({ portfolio_name: "", name: "", email: "", password: "" });
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -39,13 +107,17 @@ function AuthScreen({ setup, onDone }: { setup: boolean; onDone: () => void }) {
         <label className="field">Email<input type="email" autoComplete="username" required value={f.email} onChange={set("email")} /></label>
         <label className="field">Password{setup && <small>At least 8 characters</small>}<input type="password" autoComplete={setup ? "new-password" : "current-password"} minLength={setup ? 8 : undefined} required value={f.password} onChange={set("password")} /></label>
         <button className="primary" disabled={busy}>{busy ? "Please wait…" : setup ? "Create portfolio" : "Sign in"}</button>
+        {!setup && onForgot && <button type="button" className="link" onClick={onForgot}>Forgot password?</button>}
       </form>
     </div>
   );
 }
 
 export default function App() {
-  const [state, setState] = useState<"loading" | "setup" | "login" | "ready">("loading");
+  const [state, setState] = useState<"loading" | "setup" | "login" | "forgot" | "ready">("loading");
+  const [emailReset, setEmailReset] = useState(false);
+  const [resetToken, setResetToken] = useState<string | null>(() =>
+    window.location.pathname === "/reset-password" ? new URLSearchParams(window.location.search).get("token") : null);
   const [me, setMe] = useState<Me | null>(null);
   const [properties, setProperties] = useState<Property[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -58,7 +130,8 @@ export default function App() {
 
   const boot = useCallback(async () => {
     try {
-      const st = await api<{ setup_required: boolean }>("/api/auth/status");
+      const st = await api<{ setup_required: boolean; email_reset: boolean }>("/api/auth/status");
+      setEmailReset(!!st.email_reset);
       if (st.setup_required) return setState("setup");
       const m = await api<Me>("/api/auth/me");
       setMe(m);
@@ -75,8 +148,11 @@ export default function App() {
   }, []);
   const toast = useCallback((m: string) => { setToastMsg(m); setTimeout(() => setToastMsg(null), 3200); }, []);
 
+  if (resetToken) return <ResetScreen token={resetToken} onDone={() => { setResetToken(null); boot(); }} />;
   if (state === "loading") return <div className="empty">Loading…</div>;
-  if (state === "setup" || state === "login") return <AuthScreen setup={state === "setup"} onDone={boot} />;
+  if (state === "forgot") return <ForgotScreen onBack={() => setState("login")} />;
+  if (state === "setup" || state === "login")
+    return <AuthScreen setup={state === "setup"} onDone={boot} onForgot={emailReset ? () => setState("forgot") : undefined} />;
   if (!me) return null;
 
   const logout = async () => { await api("/api/auth/logout", { method: "POST" }); setMe(null); setState("login"); };

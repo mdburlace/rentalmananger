@@ -25,6 +25,24 @@ class Settings(BaseSettings):
     # Directory containing the built frontend (served by FastAPI in production).
     static_dir: Path | None = None
 
+    # Public address of the app, used to build links in emails, e.g. https://rent.example.com
+    # If unset, the address the request came in on is used.
+    public_url: str | None = None
+    # Outgoing email (for "forgot password"). Leave smtp_host unset to disable.
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_from: str | None = None
+    # "starttls" (port 587), "ssl" (port 465) or "none"
+    smtp_security: str = "starttls"
+    # How long an emailed reset link stays valid.
+    reset_link_minutes: int = 60
+
+    @property
+    def email_enabled(self) -> bool:
+        return bool(self.smtp_host and (self.smtp_from or self.smtp_username))
+
     @property
     def db_url(self) -> str:
         if self.database_url:
